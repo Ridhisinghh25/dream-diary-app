@@ -1,95 +1,100 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  deleteDoc,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+
+import { db } from "./firebase";
 
 export default function App() {
-  const [groups, setGroups] = useState([
-    {
-      id: 1,
-      name: "Pink Besties ♡",
-      lists: [
-        { text: "🌷 Visit a flower café", done: false },
-        { text: "❄️ Watch snowfall together", done: true },
-      ],
-    },
-  ]);
-
+  const [groups, setGroups] = useState([]);
   const [newGroup, setNewGroup] = useState("");
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [newTask, setNewTask] = useState("");
 
-  const createGroup = () => {
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "groups"), (snapshot) => {
+      const fetchedGroups = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setGroups(fetchedGroups);
+
+      if (selectedGroup) {
+        const updatedGroup = fetchedGroups.find(
+          (g) => g.id === selectedGroup.id
+        );
+
+        if (updatedGroup) {
+          setSelectedGroup(updatedGroup);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [selectedGroup]);
+
+  const createGroup = async () => {
     if (!newGroup.trim()) return;
 
-    const group = {
-      id: Date.now(),
+    await addDoc(collection(db, "groups"), {
       name: newGroup,
       lists: [],
-    };
+    });
 
-    setGroups([...groups, group]);
     setNewGroup("");
   };
 
-  const addTask = () => {
+  const addTask = async () => {
     if (!newTask.trim()) return;
 
-    const updated = groups.map((group) => {
-      if (group.id === selectedGroup.id) {
-        return {
-          ...group,
-          lists: [...group.lists, { text: newTask, done: false }],
-        };
-      }
-      return group;
-    });
+    const updatedLists = [
+      ...selectedGroup.lists,
+      {
+        text: newTask,
+        done: false,
+      },
+    ];
 
-    setGroups(updated);
-    setSelectedGroup(
-      updated.find((group) => group.id === selectedGroup.id)
-    );
+    await updateDoc(doc(db, "groups", selectedGroup.id), {
+      lists: updatedLists,
+    });
 
     setNewTask("");
   };
 
-  const toggleTask = (index) => {
-    const updated = groups.map((group) => {
-      if (group.id === selectedGroup.id) {
-        const updatedLists = [...group.lists];
+  const toggleTask = async (index) => {
+    const updatedLists = [...selectedGroup.lists];
 
-        updatedLists[index].done = !updatedLists[index].done;
+    updatedLists[index].done = !updatedLists[index].done;
 
-        return {
-          ...group,
-          lists: updatedLists,
-        };
-      }
-
-      return group;
+    await updateDoc(doc(db, "groups", selectedGroup.id), {
+      lists: updatedLists,
     });
-
-    setGroups(updated);
-
-    setSelectedGroup(
-      updated.find((group) => group.id === selectedGroup.id)
-    );
   };
 
-  const deleteTask = (index) => {
-    const updated = groups.map((group) => {
-      if (group.id === selectedGroup.id) {
-        return {
-          ...group,
-          lists: group.lists.filter((_, i) => i !== index),
-        };
-      }
-
-      return group;
-    });
-
-    setGroups(updated);
-
-    setSelectedGroup(
-      updated.find((group) => group.id === selectedGroup.id)
+  const deleteTask = async (index) => {
+    const updatedLists = selectedGroup.lists.filter(
+      (_, i) => i !== index
     );
+
+    await updateDoc(doc(db, "groups", selectedGroup.id), {
+      lists: updatedLists,
+    });
+  };
+
+  const deleteGroup = async (id) => {
+    await deleteDoc(doc(db, "groups", id));
+
+    if (selectedGroup?.id === id) {
+      setSelectedGroup(null);
+    }
   };
 
   if (selectedGroup) {
@@ -97,7 +102,8 @@ export default function App() {
       <div
         style={{
           minHeight: "100vh",
-          background: "linear-gradient(to bottom, #ffe4ec, #fff0f5)",
+          background:
+            "linear-gradient(to bottom, #ffe4ec, #fff0f5)",
           padding: "20px",
           fontFamily: "cursive",
         }}
@@ -109,7 +115,8 @@ export default function App() {
             background: "white",
             borderRadius: "30px",
             padding: "30px",
-            boxShadow: "0 10px 30px rgba(255,192,203,0.4)",
+            boxShadow:
+              "0 10px 30px rgba(255,192,203,0.4)",
           }}
         >
           <button
@@ -157,7 +164,9 @@ export default function App() {
             <input
               type="text"
               value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
+              onChange={(e) =>
+                setNewTask(e.target.value)
+              }
               placeholder="add another dream..."
               style={{
                 flex: 1,
@@ -191,11 +200,13 @@ export default function App() {
               gap: "12px",
             }}
           >
-            {selectedGroup.lists.map((task, index) => (
+            {selectedGroup.lists?.map((task, index) => (
               <div
                 key={index}
                 style={{
-                  background: task.done ? "#ffd6e7" : "#fff0f5",
+                  background: task.done
+                    ? "#ffd6e7"
+                    : "#fff0f5",
                   borderRadius: "20px",
                   padding: "15px",
                   display: "flex",
@@ -221,7 +232,9 @@ export default function App() {
                       height: "25px",
                       borderRadius: "50%",
                       border: "2px solid #ff69b4",
-                      background: task.done ? "#ff69b4" : "white",
+                      background: task.done
+                        ? "#ff69b4"
+                        : "white",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
@@ -268,7 +281,8 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(to bottom, #ffe4ec, #fff0f5)",
+        background:
+          "linear-gradient(to bottom, #ffe4ec, #fff0f5)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -283,7 +297,8 @@ export default function App() {
           background: "white",
           borderRadius: "30px",
           padding: "30px",
-          boxShadow: "0 10px 30px rgba(255,192,203,0.4)",
+          boxShadow:
+            "0 10px 30px rgba(255,192,203,0.4)",
         }}
       >
         <h1
@@ -303,7 +318,8 @@ export default function App() {
             marginBottom: "35px",
           }}
         >
-          create separate dreamy bucket lists with different friend groups ✨
+          create separate dreamy bucket lists with
+          different friend groups ✨
         </p>
 
         <div
@@ -317,7 +333,9 @@ export default function App() {
           <input
             type="text"
             value={newGroup}
-            onChange={(e) => setNewGroup(e.target.value)}
+            onChange={(e) =>
+              setNewGroup(e.target.value)
+            }
             placeholder="create a new bestie group..."
             style={{
               flex: 1,
@@ -366,7 +384,9 @@ export default function App() {
               }}
             >
               <div
-                onClick={() => setSelectedGroup(group)}
+                onClick={() =>
+                  setSelectedGroup(group)
+                }
                 style={{
                   cursor: "pointer",
                   flex: 1,
@@ -382,15 +402,14 @@ export default function App() {
                 </h2>
 
                 <p style={{ color: "#b03060" }}>
-                  {group.lists.length} dreamy goals ♡
+                  {group.lists?.length || 0} dreamy
+                  goals ♡
                 </p>
               </div>
 
               <button
                 onClick={() =>
-                  setGroups(
-                    groups.filter((g) => g.id !== group.id)
-                  )
+                  deleteGroup(group.id)
                 }
                 style={{
                   border: "none",
